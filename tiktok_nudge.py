@@ -33,7 +33,7 @@ TIKTOK_PACKAGE  = os.getenv("TIKTOK_PACKAGE",  "com.zhiliaoapp.musically")
 TIKTOK_ACTIVITY = os.getenv("TIKTOK_ACTIVITY", "com.ss.android.ugc.aweme.splash.SplashActivity")
 APPIUM_SERVER   = os.getenv("APPIUM_SERVER",   "http://localhost:4723/wd/hub")
 
-INSTANCE_BOOT_TIMEOUT = int(os.getenv("INSTANCE_BOOT_TIMEOUT", "80"))  # seconds to wait for instance ONLINE
+INSTANCE_BOOT_TIMEOUT = int(os.getenv("INSTANCE_BOOT_TIMEOUT", "120"))  # seconds to wait for instance ONLINE
 ADB_POLL_INTERVAL     = float(os.getenv("ADB_POLL_INTERVAL", "1.0"))
 ADB_CONNECT_RETRIES   = int(os.getenv("ADB_CONNECT_RETRIES", "10"))
 
@@ -161,6 +161,8 @@ def wait_instance_online(instance_uuid, timeout=INSTANCE_BOOT_TIMEOUT):
             if state == "ONLINE":
                 print("Instance is ONLINE")
                 return instance
+            else:
+                print("Instance state:", state)
         except Exception as e:
             print("Instance not ready yet, retrying...", e)
         time.sleep(2)
@@ -709,7 +711,7 @@ def main():
 
         # 1) Start Genymotion instance and wait until ONLINE
         instance_uuid = start_instance_from_recipe()
-        
+
         ensure_gmsaas_authenticated()
 
         instance_data = wait_instance_online(instance_uuid)
