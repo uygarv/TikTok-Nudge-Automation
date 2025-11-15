@@ -1,0 +1,49 @@
+name: TikTok Nudge Automation
+
+on:
+  workflow_dispatch:  # allows manual trigger
+  schedule:
+    - cron: '0 12 * * *'  # daily at 12:00 UTC
+
+jobs:
+  nudge:
+    runs-on: ubuntu-latest
+
+    env:
+      GM_API_TOKEN: ${{ secrets.GM_API_TOKEN }}
+      GM_RECIPE_UUID: ${{ secrets.GM_RECIPE_UUID }}
+      EMAIL_USER: ${{ secrets.EMAIL_USER }}
+      EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+      EMAIL_TO: ${{ secrets.EMAIL_TO }}
+      TIKTOK_PACKAGE: com.zhiliaoapp.musically
+      TIKTOK_ACTIVITY: com.ss.android.ugc.aweme.splash.SplashActivity
+      APPIUM_SERVER: http://localhost:4723/wd/hub
+      FORCE_DRIVER_INSTALL: "1"
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install python-dotenv selenium Appium-Python-Client
+
+      - name: Install Node.js (for Appium)
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20"
+
+      - name: Install Appium
+        run: |
+          npm install -g appium
+          appium driver install uiautomator2
+
+      - name: Run Nudge Bot
+        run: python nudge_bot.py
