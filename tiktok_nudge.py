@@ -698,7 +698,7 @@ def check_android_sdk():
 
 # -------- MAIN -------
 def main():
-    send_failure_email("test","this is a test")
+    ##send_failure_email("test","this is a test")
     check_android_sdk()
     instance_uuid = None
     serial = None
