@@ -25,8 +25,9 @@ jobs:
     steps:
       - name: Install missing tools (tar, unzip, jq)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y tar unzip jq
+          apt-get update
+          apt-get install -y chromium-browser
+
 
       - name: Checkout repo
         uses: actions/checkout@v4
