@@ -42,6 +42,7 @@ jobs:
           pip3 install gmsaas
 
           gmsaas auth token ${{ secrets.GM_API_TOKEN }}
+          gmsaas doctor
 
       - name: Run TikTok Nudge Bot
         env:
