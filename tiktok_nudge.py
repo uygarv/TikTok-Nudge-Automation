@@ -258,79 +258,87 @@ def kill_port(port):
 
 def start_appium_server(timeout=40):
     """
-    Ensures driver availability (optionally installs in CI), then starts Appium
-    under the selected nvm Node environment. Returns (started_bool, Popen_proc).
+    Ensures driver availability (installs in CI/forced mode), then starts Appium.
+    Returns: (started_bool, subprocess.Popen object)
     """
+    import shutil
+
     appium_bin, node_bin_dir = find_nvm_appium_bin()
     if not appium_bin:
-        raise RuntimeError("Could not find appium binary. Install Appium globally or via nvm.")
+        raise RuntimeError("Could not find Appium binary. Install Appium globally or via nvm.")
 
-    # Build env for subprocesses: copy current os.environ (which already contains ANDROID_*),
-    # and ensure PATH includes the target node bin dir first.
+    # Build env for subprocesses
     env = os.environ.copy()
     if node_bin_dir:
         env["PATH"] = node_bin_dir + ":" + env.get("PATH", "")
 
-    # 1) Kill any old process on 4723 so we can start clean
+    # 1) Kill any old process on 4723
     kill_port(4723)
 
-    # 2) Check installed drivers via the same appium binary (using env)
+    # 2) Check installed drivers
     try:
-        print("Checking installed appium drivers (using appium binary at):", appium_bin)
-        res = subprocess.run([appium_bin, "driver", "list", "--installed"], capture_output=True, text=True, env=env, check=True)
-        print(res.stderr.strip())
+        print("Checking installed Appium drivers (binary at):", appium_bin)
+        res = subprocess.run(
+            [appium_bin, "driver", "list", "--installed"],
+            capture_output=True, text=True, env=env, check=True
+        )
         stdout = res.stdout.strip()
         if "uiautomator2" not in stdout:
             msg = "uiautomator2 driver missing."
             if os.getenv("CI") or FORCE_DRIVER_INSTALL:
-                print(msg, "Installing because CI or FORCE_DRIVER_INSTALL is set.")
-                install_res = subprocess.run([appium_bin, "driver", "install", "uiautomator2"], capture_output=True, text=True, env=env, check=True)
-                print("Driver install stdout:", install_res.stdout)
-                print("Driver install stderr:", install_res.stderr)
+                print(msg, "Installing/updating because CI or FORCE_DRIVER_INSTALL is set.")
+                # Use update to avoid 'already installed' error
+                subprocess.run([appium_bin, "driver", "update", "uiautomator2"], env=env, check=True)
             else:
                 print(msg, "Skipping automatic install on local machine. Set FORCE_DRIVER_INSTALL=1 to force.")
+        else:
+            print("uiautomator2 driver already installed. Skipping installation.")
     except subprocess.CalledProcessError as e:
-        # If driver list fails, in CI try to install; locally warn and continue
-        print("Could not list drivers using appium binary:", e.stdout, e.stderr)
+        print("Could not list drivers:", e.stdout, e.stderr)
         if os.getenv("CI") or FORCE_DRIVER_INSTALL:
-            print("Attempting to install driver in CI/forced mode.")
-            subprocess.run([appium_bin, "driver", "install", "uiautomator2"], env=env, check=True)
+            print("Attempting to update/install uiautomator2 in forced mode.")
+            subprocess.run([appium_bin, "driver", "update", "uiautomator2"], env=env, check=True)
 
-    # 3) Start appium as a subprocess (process group) so we can later kill whole group
+    # 3) Start Appium subprocess
     appium_cmd = [appium_bin, "--log-level", "error", "--base-path", "/wd/hub"]
     print("Starting Appium:", " ".join(appium_cmd))
-    # use Popen and set new process group so we can kill children
-    proc = subprocess.Popen(appium_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, preexec_fn=os.setsid)
+    proc = subprocess.Popen(
+        appium_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, preexec_fn=os.setsid
+    )
 
-    # 4) Poll for status until timeout
+    # 4) Poll for status
     start = time.time()
     while time.time() - start < timeout:
-        if _appium_status_ok("http://localhost:4723/wd/hub/status"):
+        if _appium_status_ok():
             print("Appium server ready.")
-            # optionally show node version & drivers for debug
             try:
-                node_v = subprocess.run([os.path.join(node_bin_dir, "node"), "-v"], capture_output=True, text=True, env=env, check=True) if node_bin_dir else subprocess.run(["node", "-v"], capture_output=True, text=True, env=env, check=True)
+                node_v = subprocess.run(
+                    [os.path.join(node_bin_dir, "node"), "-v"] if node_bin_dir else ["node", "-v"],
+                    capture_output=True, text=True, env=env, check=True
+                )
                 print("Node in use:", node_v.stdout.strip())
             except Exception:
                 pass
             try:
-                drv = subprocess.run([appium_bin, "driver", "list", "--installed"], capture_output=True, text=True, env=env, check=True)
-                print("Installed drivers (snippet):", drv.stderr.strip())
+                drv = subprocess.run(
+                    [appium_bin, "driver", "list", "--installed"],
+                    capture_output=True, text=True, env=env, check=True
+                )
+                print("Installed drivers snippet:", drv.stdout.strip().splitlines()[:5])
             except Exception:
                 pass
             return True, proc
-        # print a small heartbeat so user sees progress
+
         print("Appium is not ready yet...")
         time.sleep(1)
 
-    # timeout -> capture logs for diagnosis
+    # Timeout -> capture logs
     stderr = ""
     try:
         _, stderr = proc.communicate(timeout=1)
         stderr = stderr.decode(errors="ignore")
     except Exception:
         pass
-    # ensure we kill the proc group
     try:
         os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
     except Exception:
