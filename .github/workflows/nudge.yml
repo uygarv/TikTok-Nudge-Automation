@@ -41,6 +41,8 @@ jobs:
           python3 -m pip install --upgrade pip
           pip3 install gmsaas
 
+          gmsaas auth token ${{ secrets.GM_API_TOKEN }}
+
       - name: Run TikTok Nudge Bot
         env:
           GM_API_TOKEN: ${{ secrets.GM_API_TOKEN }}
