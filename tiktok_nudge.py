@@ -199,16 +199,17 @@ def adb_disconnect_via_gmsaas(instance_uuid, serial):
         pass
 
 # -------- Appium helper functions (robust start/stop + driver management) --------
-def _appium_status_ok(status_url):
+def _appium_status_ok(status_url="http://localhost:4723/wd/hub/status"):
+    """Return True if Appium status endpoint is reachable and ready."""
+    import requests
     try:
-        with urllib.request.urlopen(status_url, timeout=3) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            # If Appium returns a 'value' with a 'build.version', consider it ready
-            if isinstance(data, dict) and "value" in data and "build" in data["value"] and "version" in data["value"]["build"]:
-                return True
-            return False
+        resp = requests.get(status_url, timeout=1)
+        if resp.status_code == 200 and resp.json().get("value", {}).get("ready"):
+            return True
     except Exception:
-        return False
+        pass
+    return False
+
 
 
 
