@@ -3,11 +3,11 @@ name: TikTok Nudge Automation
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 20 * * *'   # daily at 20:00 UTC+0
+    - cron: '0 20 * * *'   # daily at 20:00 UTC
 
 jobs:
   nudge:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     env:
       GM_API_TOKEN: ${{ secrets.GM_API_TOKEN }}
@@ -20,10 +20,14 @@ jobs:
       APPIUM_SERVER: http://127.0.0.1:4723/wd/hub
       ANDROID_HOME: /usr/local/android-sdk
       ANDROID_SDK_ROOT: /usr/local/android-sdk
-      PATH: $PATH:/usr/local/android-sdk/platform-tools:/usr/local/android-sdk/emulator:/usr/local/android-sdk/tools:/usr/local/android-sdk/tools/bin
-
+      PATH: /usr/local/android-sdk/platform-tools:/usr/local/android-sdk/emulator:/usr/local/android-sdk/tools:/usr/local/android-sdk/tools/bin:$PATH
 
     steps:
+      - name: Install missing tools (tar, unzip, jq)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tar unzip jq
+
       - name: Checkout repo
         uses: actions/checkout@v4
 
@@ -50,8 +54,9 @@ jobs:
 
       - name: Install Genymotion gmsaas CLI
         run: |
-          curl -sSL https://github.com/Genymobile/Genymotion-Cloud-CLI/releases/latest/download/gmsaas-linux-x64.tar.gz | tar xz -C /usr/local/bin
-          chmod +x /usr/local/bin/gmsaas
+          curl -sSL https://github.com/Genymobile/Genymotion-Cloud-CLI/releases/latest/download/gmsaas-linux-x64.tar.gz \
+            | sudo tar xz -C /usr/local/bin
+          sudo chmod +x /usr/local/bin/gmsaas
 
       - name: Auth to Genymotion Cloud
         run: gmsaas auth login $GM_API_TOKEN
