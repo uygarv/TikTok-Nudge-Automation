@@ -20,7 +20,8 @@ jobs:
       APPIUM_SERVER: http://127.0.0.1:4723/wd/hub
       ANDROID_HOME: /usr/local/android-sdk
       ANDROID_SDK_ROOT: /usr/local/android-sdk
-      PATH: /usr/local/android-sdk/platform-tools:/usr/local/android-sdk/emulator:/usr/local/android-sdk/tools:/usr/local/android-sdk/tools/bin:$PATH
+      PATH: $PATH:/usr/local/android-sdk/platform-tools:/usr/local/android-sdk/emulator:/usr/local/android-sdk/tools:/usr/local/android-sdk/tools/bin
+
 
     steps:
       - name: Checkout repo
