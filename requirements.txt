@@ -1,0 +1,4 @@
+python-dotenv
+selenium
+Appium-Python-Client
+requests
