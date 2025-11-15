@@ -24,6 +24,9 @@ jobs:
       PATH: /usr/local/android-sdk/platform-tools:/usr/local/android-sdk/emulator:/usr/local/android-sdk/tools:/usr/local/android-sdk/tools/bin:$PATH
 
     steps:
+      - name: Ensure tar is installed
+        run: sudo apt-get update && sudo apt-get install -y tar
+
       - name: Checkout repo
         uses: actions/checkout@v3
 
