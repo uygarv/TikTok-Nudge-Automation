@@ -22,7 +22,18 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install python-dotenv selenium Appium-Python-Client requests
+
+      - name: Setup Node.js (required for Appium)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Appium (global) and uiautomator2 driver
+        run: |
+          npm ci -g npm@latest
+          npm install -g appium@latest
+          # ensure appium is on PATH and can install the driver
+          appium driver install uiautomator2 || true
 
       - name: Run TikTok Nudge Bot
         env:
