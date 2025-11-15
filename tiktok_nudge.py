@@ -7,7 +7,6 @@ import subprocess
 import traceback
 import dotenv
 import shutil
-import urllib.request
 import glob
 import signal
 
@@ -33,7 +32,7 @@ TIKTOK_PACKAGE  = os.getenv("TIKTOK_PACKAGE",  "com.zhiliaoapp.musically")
 TIKTOK_ACTIVITY = os.getenv("TIKTOK_ACTIVITY", "com.ss.android.ugc.aweme.splash.SplashActivity")
 APPIUM_SERVER   = os.getenv("APPIUM_SERVER",   "http://localhost:4723/wd/hub")
 
-INSTANCE_BOOT_TIMEOUT = int(os.getenv("INSTANCE_BOOT_TIMEOUT", "120"))  # seconds to wait for instance ONLINE
+INSTANCE_BOOT_TIMEOUT = int(os.getenv("INSTANCE_BOOT_TIMEOUT", "180"))  # seconds to wait for instance ONLINE
 ADB_POLL_INTERVAL     = float(os.getenv("ADB_POLL_INTERVAL", "1.0"))
 ADB_CONNECT_RETRIES   = int(os.getenv("ADB_CONNECT_RETRIES", "10"))
 
