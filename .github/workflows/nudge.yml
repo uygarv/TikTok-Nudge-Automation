@@ -1,9 +1,9 @@
 name: TikTok Nudge Automation
 
 on:
-  workflow_dispatch:      # Manual trigger
+  workflow_dispatch:
   schedule:
-    - cron: '0 20 * * *'  # daily at 12:00 UTC
+    - cron: '0 20 * * *'   # daily at 20:00 UTC+0
 
 jobs:
   nudge:
@@ -17,53 +17,69 @@ jobs:
       EMAIL_TO: ${{ secrets.EMAIL_TO }}
       TIKTOK_PACKAGE: com.zhiliaoapp.musically
       TIKTOK_ACTIVITY: com.ss.android.ugc.aweme.splash.SplashActivity
-      APPIUM_SERVER: http://localhost:4723/wd/hub
-      FORCE_DRIVER_INSTALL: "1"
+      APPIUM_SERVER: http://127.0.0.1:4723/wd/hub
       ANDROID_HOME: /usr/local/android-sdk
       ANDROID_SDK_ROOT: /usr/local/android-sdk
       PATH: /usr/local/android-sdk/platform-tools:/usr/local/android-sdk/emulator:/usr/local/android-sdk/tools:/usr/local/android-sdk/tools/bin:$PATH
 
     steps:
-      - name: Ensure tar is installed
-        run: sudo apt-get update && sudo apt-get install -y tar
-
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
 
-      - name: Cache pip packages
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install python-dotenv selenium Appium-Python-Client
+          pip install python-dotenv selenium Appium-Python-Client requests
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: "20"
 
-      - name: Install Appium
+      - name: Install Appium + Drivers
         run: |
           npm install -g appium
           appium driver install uiautomator2
 
-      - name: Install gmsaas CLI
+      - name: Install Genymotion gmsaas CLI
         run: |
           curl -sSL https://github.com/Genymobile/Genymotion-Cloud-CLI/releases/latest/download/gmsaas-linux-x64.tar.gz | tar xz -C /usr/local/bin
           chmod +x /usr/local/bin/gmsaas
 
-      - name: Run TikTok Nudge Bot
+      - name: Auth to Genymotion Cloud
+        run: gmsaas auth login $GM_API_TOKEN
+
+      - name: Start virtual device
+        id: start_device
         run: |
-          python tiktok_nudge.py
+          DEVICE_INFO=$(gmsaas instances start $GM_RECIPE_UUID tiktokbot --json)
+          echo "$DEVICE_INFO"
+          DEVICE_ID=$(echo "$DEVICE_INFO" | jq -r '.instance.uuid')
+          echo "DEVICE_ID=$DEVICE_ID" >> $GITHUB_ENV
+
+      - name: Wait for device to boot
+        run: sleep 20
+
+      - name: Connect ADB
+        run: gmsaas instances adbconnect $DEVICE_ID
+
+      - name: Start Appium server
+        run: |
+          nohup appium --log-level info &
+          sleep 5
+
+      - name: Run TikTok Nudge Bot
+        run: python tiktok_nudge.py
+
+      - name: Stop Genymotion instance
+        if: always()
+        run: |
+          if [ -n "$DEVICE_ID" ]; then
+            gmsaas instances stop $DEVICE_ID
+          fi
