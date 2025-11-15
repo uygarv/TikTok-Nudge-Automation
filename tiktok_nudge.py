@@ -709,6 +709,9 @@ def main():
 
         # 1) Start Genymotion instance and wait until ONLINE
         instance_uuid = start_instance_from_recipe()
+        
+        ensure_gmsaas_authenticated()
+
         instance_data = wait_instance_online(instance_uuid)
 
         # 2) Create adb tunnel via gmsaas
