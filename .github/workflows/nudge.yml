@@ -66,6 +66,7 @@ jobs:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          NUDGE_USERS: ${{ secrets.NUDGE_USERS }}
           TIKTOK_PACKAGE: com.zhiliaoapp.musically
           TIKTOK_ACTIVITY: com.ss.android.ugc.aweme.splash.SplashActivity
           APPIUM_SERVER: http://127.0.0.1:4723/wd/hub
