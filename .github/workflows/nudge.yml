@@ -1,7 +1,7 @@
 name: TikTok Nudge Automation
 
 on:
-  workflow_dispatch:  # allows manual trigger
+  workflow_dispatch:      # Manual trigger
   schedule:
     - cron: '0 12 * * *'  # daily at 12:00 UTC
 
@@ -19,6 +19,9 @@ jobs:
       TIKTOK_ACTIVITY: com.ss.android.ugc.aweme.splash.SplashActivity
       APPIUM_SERVER: http://localhost:4723/wd/hub
       FORCE_DRIVER_INSTALL: "1"
+      ANDROID_HOME: /usr/local/android-sdk
+      ANDROID_SDK_ROOT: /usr/local/android-sdk
+      PATH: /usr/local/android-sdk/platform-tools:/usr/local/android-sdk/emulator:/usr/local/android-sdk/tools:/usr/local/android-sdk/tools/bin:$PATH
 
     steps:
       - name: Checkout repo
@@ -29,13 +32,21 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
+      - name: Cache pip packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install python-dotenv selenium Appium-Python-Client
 
-      - name: Install Node.js (for Appium)
+      - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: "20"
@@ -45,5 +56,11 @@ jobs:
           npm install -g appium
           appium driver install uiautomator2
 
-      - name: Run Nudge Bot
-        run: python nudge_bot.py
+      - name: Install gmsaas CLI
+        run: |
+          curl -sSL https://github.com/Genymobile/Genymotion-Cloud-CLI/releases/latest/download/gmsaas-linux-x64.tar.gz | tar xz -C /usr/local/bin
+          chmod +x /usr/local/bin/gmsaas
+
+      - name: Run TikTok Nudge Bot
+        run: |
+          python nudge_bot.py
