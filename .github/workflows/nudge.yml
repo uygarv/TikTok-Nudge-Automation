@@ -22,6 +22,7 @@ jobs:
           echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
 
 
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
@@ -54,6 +55,8 @@ jobs:
           pip3 install gmsaas
 
           gmsaas auth token ${{ secrets.GM_API_TOKEN }}
+          gmsaas config set android-sdk-path $HOME/android-sdk
+
           gmsaas doctor
 
       - name: Run TikTok Nudge Bot
