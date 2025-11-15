@@ -28,11 +28,12 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install Appium (global) and uiautomator2 driver
+      - name: Update npm globally
+        run: npm install -g npm@latest
+
+      - name: Install Appium
         run: |
-          npm ci -g npm@latest
           npm install -g appium@latest
-          # ensure appium is on PATH and can install the driver
           appium driver install uiautomator2 || true
 
       - name: Run TikTok Nudge Bot
