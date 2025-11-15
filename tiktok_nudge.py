@@ -170,6 +170,7 @@ def wait_instance_online(instance_uuid, timeout=INSTANCE_BOOT_TIMEOUT):
 def ensure_gmsaas_authenticated():
     try:
         run_cmd(["gmsaas", "auth", "token", GM_API_TOKEN], timeout=20)
+        run_cmd(["gmsaas", "doctor"], timeout=20)
         print("gmsaas authenticated.")
     except Exception as e:
         print("gmsaas auth attempted:", e)
