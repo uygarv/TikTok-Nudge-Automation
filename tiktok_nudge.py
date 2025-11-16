@@ -371,6 +371,12 @@ def make_driver_with_serial(serial):
     options.no_reset = True
     options.new_command_timeout = 300
 
+    options.enforce_app_install = False
+    options.skipDeviceInitialization = True
+    options.skipServerInstallation = True
+    options.disableWindowAnimation = True
+
+
     options.uiautomator2_server_install_timeout = 60000  # 1 minute
 
     try:
