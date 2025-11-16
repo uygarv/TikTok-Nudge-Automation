@@ -3,7 +3,7 @@ name: TikTok Nudge Automation
 on:
   workflow_dispatch:
   schedule:
-    - cron: '15 18 * * *'  # Her gün 18:00 UTC
+    - cron: '30 18 * * *'  # Her gün 18:00 UTC
 
 jobs:
   nudge:
