@@ -79,7 +79,7 @@ print(f"ANDROID_SDK_ROOT set to: {os.environ.get('ANDROID_SDK_ROOT')}")
 print("PATH (start):", os.environ["PATH"].split(":")[0:3])
 
 # -------- UTILITIES -------
-def send_failure_email(subject, body):
+def send_email(subject, body):
     if not all([EMAIL_USER, EMAIL_PASS, EMAIL_TO]):
         print("Email config missing, skipping email.")
         return
@@ -705,7 +705,6 @@ def check_android_sdk():
 
 # -------- MAIN -------
 def main():
-    ##send_failure_email("test","this is a test")
     check_android_sdk()
     instance_uuid = None
     serial = None
@@ -747,6 +746,8 @@ def main():
         stop_instance(instance_uuid)
         print("Completed run successfully.")
 
+        send_email("TikTok Nudge Automation Succeeded", "Successfully nudged users. (" + time.ctime() + ")")
+
     except Exception as e:
         tb = traceback.format_exc()
         print("Fatal error:", tb)
@@ -765,7 +766,7 @@ def main():
                 stop_instance(instance_uuid)
         except Exception as stop_err:
             print("Error stopping instance:", stop_err)
-        send_failure_email("TikTok Nudge Automation Failed", tb)
+        send_email("TikTok Nudge Automation Failed", tb)
         raise
     finally:
         # Stop Appium server if we started it here
