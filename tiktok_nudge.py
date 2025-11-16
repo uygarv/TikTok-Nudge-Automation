@@ -201,18 +201,19 @@ def adb_disconnect_via_gmsaas(instance_uuid, serial):
         pass
 
 # -------- Appium helper functions (robust start/stop + driver management) --------
+import requests
+
 def _appium_status_ok(status_url="http://localhost:4723/wd/hub/status"):
-    """Return True if Appium status endpoint is reachable and ready."""
-    import requests
+    """
+    Return True if Appium status endpoint is reachable.
+    Compatible with Appium 1.x and 2.x.
+    """
     try:
         resp = requests.get(status_url, timeout=1)
-        if resp.status_code == 200 and resp.json().get("value", {}).get("ready"):
-            return True
-    except Exception:
-        pass
-    return False
-
-
+        # If server responds 200, we assume it’s ready
+        return resp.status_code == 200
+    except requests.RequestException:
+        return False
 
 
 def find_nvm_appium_bin(preferred_node_prefix=APPIUM_NODE_VERSION):
