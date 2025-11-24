@@ -22,7 +22,6 @@ jobs:
           echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
 
 
-
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
@@ -41,13 +40,15 @@ jobs:
       - name: Update npm globally
         run: npm install -g npm@latest
 
+      - name: Kill existing adb server
+        run: |
+          adb kill-server || true
+          pkill -9 adb || true
+
       - name: Install Appium
         run: |
           npm install -g appium@latest
           appium driver install uiautomator2 || true
-
-
-
 
       - name: Install gmsaas CLI
         run: |
@@ -58,6 +59,7 @@ jobs:
           gmsaas config set android-sdk-path $HOME/android-sdk
 
           gmsaas doctor
+
 
       - name: Run TikTok Nudge Bot
         env:
