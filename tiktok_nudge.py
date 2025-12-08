@@ -687,6 +687,7 @@ def run_nudge_flow_fast(driver, targets=None, max_to_process=50):
         processed += 1
 
     print(f"[run] Completed: processed {processed} nudges (targets provided: {len(targets)})")
+    return processed
 
 # -------- ANDROID SDK CHECK (explicit) -------
 def check_android_sdk():
@@ -736,7 +737,7 @@ def main():
         print("Driver created. Running nudge flow.")
 
         targets = load_nudge_targets()   # uses NUDGE_USERS env or nudge_users.txt
-        run_nudge_flow_fast(driver, targets=targets, max_to_process=50)
+        proccesed = run_nudge_flow_fast(driver, targets=targets, max_to_process=50)
 
 
         # 4) Cleanup
@@ -746,7 +747,10 @@ def main():
         stop_instance(instance_uuid)
         print("Completed run successfully.")
 
-        send_email("TikTok Nudge Automation Succeeded", "Successfully nudged users. (" + time.ctime() + ")")
+        if proccesed == len(targets):
+            send_email("TikTok Nudge Automation Succeeded", "Successfully nudged all users. (" + time.ctime() + ")")
+        else:
+            send_email("TikTok Nudge Automation Failed", f"Nudged {proccesed} out of {len(targets)} users. (" + time.ctime() + ")")
 
     except Exception as e:
         tb = traceback.format_exc()
