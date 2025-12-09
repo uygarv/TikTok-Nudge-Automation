@@ -470,7 +470,7 @@ def open_inbox_and_wait(driver, open_timeout=INBOX_OPEN_TIMEOUT):
                 print("[run] Clicking inbox element.")
                 el.click()
                 # wait a little for menu to animate in
-                time.sleep(1.5)
+                time.sleep(3)
                 # wait for scrollable container to appear
                 c = wait_for_inbox_container(driver, timeout=open_timeout)
                 if c:
@@ -555,6 +555,7 @@ def _find_username_in_container(container, username):
         attempts += 1
 
         if attempts < max_attempts:
+            print(f"[run] Username '{username}' not found in container, retrying after 5 seconds...")
             time.sleep(5)
 
 def scroll_container_small(driver, container, direction="up"):
