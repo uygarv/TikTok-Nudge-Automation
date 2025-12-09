@@ -470,7 +470,7 @@ def open_inbox_and_wait(driver, open_timeout=INBOX_OPEN_TIMEOUT):
                 print("[run] Clicking inbox element.")
                 el.click()
                 # wait a little for menu to animate in
-                time.sleep(3)
+                time.sleep(2)
                 # wait for scrollable container to appear
                 c = wait_for_inbox_container(driver, timeout=open_timeout)
                 if c:
@@ -619,6 +619,8 @@ def run_nudge_flow_fast(driver, targets=None, max_to_process=50):
     if not container:
         print("[run] Inbox container not found; aborting.")
         return
+    
+    time.sleep(2.0)
 
     for username in targets:
         if processed >= max_to_process:
