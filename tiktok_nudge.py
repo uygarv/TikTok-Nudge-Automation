@@ -92,9 +92,9 @@ def send_email(subject, body):
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
             smtp.login(EMAIL_USER, EMAIL_PASS)
             smtp.send_message(msg)
-        print("Sent failure email.")
+        print("Sent email.")
     except Exception as e:
-        print("Failed to send failure email:", e)
+        print("Failed to send email:", e)
 
 def run_cmd(cmd, check=True, capture_output=True, text=True, timeout=None, env=None):
     """Run a list-form command (no shell) and return CompletedProcess."""
@@ -558,6 +558,101 @@ def _find_username_in_container(container, username):
             print(f"[run] Username '{username}' not found in container, retrying after 5 seconds...")
             time.sleep(5)
 
+
+def _find_username(driver, container, username):
+    """
+    Searches for a username in the UI with detailed logging.
+    Strategy:
+    1) container search (contains first, then exact)
+    2) global search (contains first, then exact)
+    3) accessibility search
+    """
+
+    max_attempts = 3
+    retry_delay = 5
+
+    print(f"[find] START -> Searching for username: '{username}'")
+
+    for attempt_index in range(max_attempts):
+        print(f"\n[find] Attempt {attempt_index + 1}/{max_attempts}")
+
+        try:
+            # ---------- 1) Container based search ----------
+            if container:
+                print("[find] Using: container search")
+
+                container_contains_xpath = f".//*[contains(@text,'{username}')]"
+                print(f"[find] Trying XPATH (container contains): {container_contains_xpath}")
+                elements = container.find_elements(By.XPATH, container_contains_xpath)
+                print(f"[find] Result -> {len(elements)} elements found")
+                if elements:
+                    print("[find] ✅ FOUND via container contains")
+                    return elements[0]
+
+                container_exact_xpath = f".//*[@text='{username}']"
+                print(f"[find] Trying XPATH (container exact): {container_exact_xpath}")
+                elements = container.find_elements(By.XPATH, container_exact_xpath)
+                print(f"[find] Result -> {len(elements)} elements found")
+                if elements:
+                    print("[find] ✅ FOUND via container exact")
+                    return elements[0]
+
+            # ---------- 2) Global search ----------
+            print("[find] Using: global search")
+
+            global_contains_xpath = f"//*[contains(@text,'{username}')]"
+            print(f"[find] Trying XPATH (global contains): {global_contains_xpath}")
+            elements = driver.find_elements(By.XPATH, global_contains_xpath)
+            print(f"[find] Result -> {len(elements)} elements found")
+            if elements:
+                print("[find] ✅ FOUND via global contains")
+                return elements[0]
+
+            global_exact_xpath = f"//*[@text='{username}']"
+            print(f"[find] Trying XPATH (global exact): {global_exact_xpath}")
+            elements = driver.find_elements(By.XPATH, global_exact_xpath)
+            print(f"[find] Result -> {len(elements)} elements found")
+            if elements:
+                print("[find] ✅ FOUND via global exact")
+                return elements[0]
+
+            # ---------- 3) Accessibility search ----------
+            print("[find] Using: content-desc search")
+
+            accessibility_contains_xpath = f"//*[contains(@content-desc,'{username}')]"
+            print(f"[find] Trying XPATH (content-desc contains): {accessibility_contains_xpath}")
+            elements = driver.find_elements(By.XPATH, accessibility_contains_xpath)
+            print(f"[find] Result -> {len(elements)} elements found")
+            if elements:
+                print("[find] ✅ FOUND via content-desc contains")
+                return elements[0]
+
+        except Exception as err:
+            print(f"[find] ❌ ERROR during attempt {attempt_index + 1}: {repr(err)}")
+
+        if attempt_index < max_attempts - 1:
+            print(f"[find] ⏳ Not found — retrying in {retry_delay}s...")
+            time.sleep(retry_delay)
+
+    print(f"[find] ❌ FINAL -> Username '{username}' not found in UI")
+
+
+def _find_username_ui_scrollable(driver, username):
+    """
+    Uses Android UiScrollable to force-scroll until the username is visible.
+    Returns element or raises Exception.
+    """
+    try:
+        el = driver.find_element(
+            By.AndroidUIAutomator,
+            f'new UiScrollable(new UiSelector().scrollable(true))'
+            f'.scrollIntoView(new UiSelector().text("{username}"))'
+        )
+        return el
+    except Exception:
+        raise Exception(f"Username '{username}' not found via UiScrollable")
+
+
 def scroll_container_small(driver, container, direction="up"):
     """
     Perform a short swipe inside the container rect (direction 'up' or 'down').
@@ -609,6 +704,7 @@ def run_nudge_flow_fast(driver, targets=None, max_to_process=50):
         driver.activate_app(TIKTOK_PACKAGE)
     except Exception as e:
         print("[run] activate_app failed:", e)
+
     time.sleep(1.5)
 
     processed = 0
@@ -629,16 +725,22 @@ def run_nudge_flow_fast(driver, targets=None, max_to_process=50):
         print(f"\n[run] Trying to find chat: {username}")
 
         # search directly in the container
-        found_el = _find_username_in_container(container, username)
+        #found_el = _find_username_in_container(container, username)
+        #if not found_el:
+        #    print(f"[run] Could not locate chat for {username}. Skipping.")
+        #    continue
+
+        found_el = _find_username(driver, container, username)
         if not found_el:
-            print(f"[run] Could not locate chat for {username}. Skipping.")
+            print(f"[run] Could not locate chat for {username} with global search.")
             continue
 
         # climb up to 3 ancestors to find clickable row
         click_target = found_el
         try:
             ancestor = found_el
-            for _ in range(3):
+            for i in range(3):
+                print(f"[run] Checking ancestor level {i+1} for clickable...")
                 parent = ancestor.find_element(By.XPATH, "..")
                 if parent and parent.get_attribute("clickable") in ("true", "1"):
                     click_target = parent
