@@ -470,7 +470,7 @@ def open_inbox_and_wait(driver, open_timeout=INBOX_OPEN_TIMEOUT):
                 print("[run] Clicking inbox element.")
                 el.click()
                 # wait a little for menu to animate in
-                time.sleep(0.6)
+                time.sleep(1.5)
                 # wait for scrollable container to appear
                 c = wait_for_inbox_container(driver, timeout=open_timeout)
                 if c:
@@ -532,20 +532,30 @@ def wait_for_inbox_container(driver, timeout=INBOX_OPEN_TIMEOUT):
 def _find_username_in_container(container, username):
     """
     Search only inside the container for exact-text TextView(s).
-    Returns a matching child element or None.
+    Retries 2 times with 5s delay if not found, then raises an exception.
     """
-    try:
-        # exact-text match inside container
-        els = container.find_elements(By.XPATH, f".//android.widget.TextView[@text='{username}']")
-        if els:
-            return els[0]
-        # sometimes username is in other textviews (e.g. custom layouts)
-        els2 = container.find_elements(By.XPATH, f".//*[normalize-space(@text)='{username}']")
-        if els2:
-            return els2[0]
-    except Exception:
-        pass
-    return None
+    attempts = 0
+    max_attempts = 3  # initial try + 2 retries
+
+    while attempts < max_attempts:
+        try:
+            # exact-text match inside container
+            els = container.find_elements(By.XPATH, f".//android.widget.TextView[@text='{username}']")
+            if els:
+                return els[0]
+
+            # fallback for custom layouts
+            els2 = container.find_elements(By.XPATH, f".//*[normalize-space(@text)='{username}']")
+            if els2:
+                return els2[0]
+
+        except Exception:
+            pass
+
+        attempts += 1
+
+        if attempts < max_attempts:
+            time.sleep(5)
 
 def scroll_container_small(driver, container, direction="up"):
     """
