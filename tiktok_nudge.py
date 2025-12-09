@@ -840,7 +840,7 @@ def main():
 
         # 2) Create adb tunnel via gmsaas
         serial = adb_connect_via_gmsaas(instance_uuid)
-        time.sleep(5)  # give the tunnel time
+        time.sleep(1)  # give the tunnel time
         os.environ["ANDROID_ADB_SERVER_PORT"] = serial.split(":")[-1]
        
         if not serial:
