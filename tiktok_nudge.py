@@ -705,7 +705,7 @@ def run_nudge_flow_fast(driver, targets=None, max_to_process=50):
     except Exception as e:
         print("[run] activate_app failed:", e)
 
-    time.sleep(1.5)
+    time.sleep(2)
 
     processed = 0
     wait = WebDriverWait(driver, DEFAULT_PER_ACTION_TIMEOUT)
