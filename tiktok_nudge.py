@@ -440,7 +440,7 @@ import time
 # tuning
 TOP_HEADER_Y_RATIO = 0.12
 CLICK_STABILIZE = 0.45
-DEFAULT_PER_ACTION_TIMEOUT = 1
+DEFAULT_PER_ACTION_TIMEOUT = 1.5
 INBOX_OPEN_TIMEOUT = 1
 SCROLL_ATTEMPTS_PER_USER = 1   # small number of quick scrolls if not visible
 SCROLL_PAUSE = 0.25
@@ -705,7 +705,7 @@ def run_nudge_flow_fast(driver, targets=None, max_to_process=50):
     except Exception as e:
         print("[run] activate_app failed:", e)
 
-    time.sleep(2)
+    time.sleep(3)
 
     processed = 0
     wait = WebDriverWait(driver, DEFAULT_PER_ACTION_TIMEOUT)
