@@ -774,8 +774,12 @@ def run_nudge_flow_fast(driver, targets=None, max_to_process=50):
         nudged = False
         nudge_xps = [
             "//*[contains(translate(@text,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'nudge')]",
-            "//*[@content-desc='ThumbsUp']/parent::*", #fallback if no nudge (special days, etc.)
             "//*[contains(translate(@content-desc,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'nudge')]",
+
+            #fallbacks if no nudge (special days, etc.)
+            "//*[@content-desc='ThumbsUp']/parent::*", 
+            "//*[@content-desc='Heart']/parent::*"
+
             "//android.widget.Button[contains(@text,'Nudge') or contains(@content-desc,'Nudge')]",
         ]
         for xp in nudge_xps:
