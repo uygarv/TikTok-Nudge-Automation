@@ -790,6 +790,8 @@ def run_nudge_flow_fast(driver, targets=None, max_to_process=50):
 
         if not nudged:
             print(f"[run] No Nudge button for {username} (UI variant or already nudged).")
+        else:
+            processed += 1
 
         # return to inbox
         try:
@@ -799,7 +801,7 @@ def run_nudge_flow_fast(driver, targets=None, max_to_process=50):
         except Exception:
             pass
 
-        processed += 1
+    
 
     print(f"[run] Completed: processed {processed} nudges (targets provided: {len(targets)})")
     return processed
