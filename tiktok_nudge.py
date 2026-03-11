@@ -449,8 +449,10 @@ def open_inbox_and_wait(driver, open_timeout=INBOX_OPEN_TIMEOUT):
     """Open the Inbox and wait for a scrollable inbox container to appear/clickable."""
     print("[run] Trying to open Inbox...")
     attempts = [
-        ("accessibility id", "Inbox"),
         (By.XPATH, "//android.widget.TextView[@text='Inbox']"),
+        (By.XPATH, "//*[@resource-id='com.zhiliaoapp.musically:id/mso']"),
+        ("accessibility id", "Inbox"),
+
         (By.XPATH, "//*[contains(@content-desc,'Inbox') or contains(@text,'Inbox') or contains(@text,'Messages')]"),
         (By.XPATH, "//*[contains(@content-desc,'Messages') or contains(@content-desc,'Inbox')]"),
     ]
@@ -774,8 +776,8 @@ def run_nudge_flow_fast(driver, targets=None, max_to_process=50):
         nudged = False
         nudge_xps = [
             "//*[contains(translate(@text,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'nudge')]",
-            "//*[contains(translate(@text,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'Nudge back')]",
             "//*[contains(translate(@content-desc,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'nudge')]",
+            "//*[contains(translate(@text,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'Nudge back')]",
 
             #fallbacks if no nudge (special days, etc.)
             "//*[@content-desc='ThumbsUp']/parent::*", 
