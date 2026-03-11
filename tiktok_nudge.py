@@ -774,6 +774,7 @@ def run_nudge_flow_fast(driver, targets=None, max_to_process=50):
         nudged = False
         nudge_xps = [
             "//*[contains(translate(@text,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'nudge')]",
+            "//*[contains(translate(@text,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'Nudge back')]",
             "//*[contains(translate(@content-desc,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'nudge')]",
 
             #fallbacks if no nudge (special days, etc.)
