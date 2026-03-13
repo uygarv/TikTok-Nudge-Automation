@@ -14,6 +14,7 @@ dotenv.load_dotenv()
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
 
 from appium.options.android import UiAutomator2Options
@@ -681,6 +682,42 @@ def scroll_container_small(driver, container, direction="up"):
         print("[run] scroll_container_small failed:", e)
         return False
 
+def wait_until(driver, condition, timeout=10, poll=0.4, label="condition"):
+    try:
+        WebDriverWait(driver, timeout, poll_frequency=poll).until(lambda d: condition(d))
+        return True
+    except TimeoutException:
+        print(f"[wait] Timeout waiting for {label}")
+        return False
+
+def ensure_app_foreground(driver, package, retries=3, timeout_each=5):
+    for attempt in range(1, retries + 1):
+        try:
+            print(f"[app] Activating {package}, attempt {attempt}")
+            driver.activate_app(package)
+
+            ok = wait_until(
+                driver,
+                lambda d: (
+                    getattr(d, "current_package", None) == package
+                    or d.query_app_state(package) == 4
+                ),
+                timeout=timeout_each,
+                label=f"{package} in foreground"
+            )
+
+            if ok:
+                print("[app] App is in foreground")
+                return True
+
+        except Exception as e:
+            print("[app] activate/check failed:", e)
+
+        time.sleep(1)
+
+    print("[app] Failed to bring app to foreground")
+    return False
+
 
 def run_nudge_flow_fast(driver, targets=None, max_to_process=50):
     """
@@ -703,7 +740,11 @@ def run_nudge_flow_fast(driver, targets=None, max_to_process=50):
 
     try:
         print("[run] Activating TikTok...")
-        driver.activate_app(TIKTOK_PACKAGE)
+
+        if not ensure_app_foreground(driver, TIKTOK_PACKAGE, retries=3, timeout_each=5):
+            print("[run] Could not open TikTok; aborting.")
+            return
+
     except Exception as e:
         print("[run] activate_app failed:", e)
 
