@@ -449,32 +449,54 @@ SCROLL_PAUSE = 0.25
 def open_inbox_and_wait(driver, open_timeout=INBOX_OPEN_TIMEOUT):
     """Open the Inbox and wait for a scrollable inbox container to appear/clickable."""
     print("[run] Trying to open Inbox...")
-    attempts = [
-        (By.XPATH, "//android.widget.TextView[@text='Inbox']"),
-        (By.XPATH, "//*[@resource-id='com.zhiliaoapp.musically:id/mso']"),
-        ("accessibility id", "Inbox"),
 
-        (By.XPATH, "//*[contains(@content-desc,'Inbox') or contains(@text,'Inbox') or contains(@text,'Messages')]"),
-        (By.XPATH, "//*[contains(@content-desc,'Messages') or contains(@content-desc,'Inbox')]"),
+    def _tap_center(el):
+        r = el.rect
+        cx = int(r["x"] + r["width"] / 2)
+        cy = int(r["y"] + r["height"] / 2)
+        driver.execute_script("mobile: tap", {"x": cx, "y": cy})
+
+    def _click_or_tap(el):
+        try:
+            el.click()
+            return True
+        except Exception as e:
+            print("[run] normal click failed, trying tap:", e)
+            try:
+                _tap_center(el)
+                return True
+            except Exception as e2:
+                print("[run] tap failed:", e2)
+                return False
+
+    attempts = [
+        (By.ID, "com.zhiliaoapp.musically:id/mso"),
+        (By.XPATH, "//android.widget.TextView[@text='Inbox']"),
+        (By.ID, "com.zhiliaoapp.musically:id/myf"),
+        
+        ("accessibility id", "Inbox"),
     ]
 
+    # 1) direct locators
     for by, sel in attempts:
         try:
             print(f"[run] trying selector {by} / {sel}")
+
             if by == "accessibility id":
-                el = driver.find_element("accessibility id", sel)
+                el = WebDriverWait(driver, 2).until(
+                    lambda d: d.find_element("accessibility id", sel)
+                )
             else:
-                el = driver.find_element(by, sel)
+                el = WebDriverWait(driver, 2).until(
+                    EC.presence_of_element_located((by, sel))
+                )
+
             if el and el.is_displayed():
-                try:
-                    WebDriverWait(driver, 1.2).until(EC.element_to_be_clickable((by, sel)))
-                except Exception:
-                    pass
                 print("[run] Clicking inbox element.")
-                el.click()
-                # wait a little for menu to animate in
-                time.sleep(2)
-                # wait for scrollable container to appear
+                if not _click_or_tap(el):
+                    continue
+
+                time.sleep(0.8)
                 c = wait_for_inbox_container(driver, timeout=open_timeout)
                 if c:
                     print("[run] Inbox container available.")
@@ -482,25 +504,56 @@ def open_inbox_and_wait(driver, open_timeout=INBOX_OPEN_TIMEOUT):
                 else:
                     print("[run] Inbox click succeeded but container not found yet.")
         except Exception as e:
-            # not found / clickable — continue trying
-            # print minimal debug
             print("[run] inbox selector failed:", e)
             continue
 
-    # fallback: tap bottom nav area
+    # 2) fallback: bottom nav container -> 4th item (Inbox), since you always start from Home
     try:
+        print("[run] Trying bottom-nav index fallback...")
+        nav_children = driver.find_elements(
+            By.XPATH,
+            "//*[@resource-id='com.zhiliaoapp.musically:id/mym']/*"
+        )
+
+        print(f"[run] bottom-nav child count: {len(nav_children)}")
+
+        if len(nav_children) >= 4:
+            inbox_el = nav_children[3]  # 0-based: 4th item = Inbox
+            if _click_or_tap(inbox_el):
+                time.sleep(0.8)
+                c = wait_for_inbox_container(driver, timeout=open_timeout)
+                if c:
+                    print("[run] Inbox container available (bottom-nav fallback).")
+                    return c
+                else:
+                    print("[run] bottom-nav click worked but container not found.")
+        else:
+            print("[run] bottom-nav fallback: not enough children found.")
+    except Exception as e:
+        print("[run] bottom-nav fallback failed:", e)
+
+    # 3) last-resort coordinate fallback: 4th slot of bottom nav
+    try:
+        print("[run] Trying coordinate fallback for Inbox...")
         size = driver.get_window_size()
-        driver.execute_script("mobile: tap", {"x": int(size['width'] * 0.5), "y": int(size['height'] * 0.9)})
+
+        # bottom nav is 5 items wide; Inbox is the 4th item => center around 70%
+        x = int(size["width"] * 0.7)
+        y = int(size["height"] * 0.94)
+
+        driver.execute_script("mobile: tap", {"x": x, "y": y})
         time.sleep(0.8)
+
         c = wait_for_inbox_container(driver, timeout=open_timeout)
         if c:
-            print("[run] Inbox container available (fallback tap).")
+            print("[run] Inbox container available (coordinate fallback).")
             return c
     except Exception as e:
-        print("[run] fallback inbox tap failed:", e)
+        print("[run] coordinate inbox tap failed:", e)
 
     print("[run] Could not open inbox.")
     return None
+
 
 def wait_for_inbox_container(driver, timeout=INBOX_OPEN_TIMEOUT):
     """
