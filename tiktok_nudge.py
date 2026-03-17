@@ -470,11 +470,10 @@ def open_inbox_and_wait(driver, open_timeout=INBOX_OPEN_TIMEOUT):
                 return False
 
     attempts = [
+        (By.ID, "com.zhiliaoapp.musically:id/n18"),
         (By.ID, "com.zhiliaoapp.musically:id/mso"),
         (By.XPATH, "//android.widget.TextView[@text='Inbox']"),
-        (By.ID, "com.zhiliaoapp.musically:id/myf"),
-        
-        ("accessibility id", "Inbox"),
+        (By.ID, "com.zhiliaoapp.musically:id/myf")
     ]
 
     # 1) direct locators
