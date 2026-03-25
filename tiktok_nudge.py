@@ -9,6 +9,8 @@ import dotenv
 import shutil
 import glob
 import signal
+import requests
+import time
 
 dotenv.load_dotenv()
 
@@ -16,6 +18,12 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
+
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+
 
 from appium.options.android import UiAutomator2Options
 from appium import webdriver
@@ -37,15 +45,10 @@ INSTANCE_BOOT_TIMEOUT = int(os.getenv("INSTANCE_BOOT_TIMEOUT", "180"))  # second
 ADB_POLL_INTERVAL     = float(os.getenv("ADB_POLL_INTERVAL", "1.0"))
 ADB_CONNECT_RETRIES   = int(os.getenv("ADB_CONNECT_RETRIES", "10"))
 
-# Node major/minor version to prefer for Appium (string prefix, e.g. "20" or "20.19.5")
 APPIUM_NODE_VERSION = os.getenv("APPIUM_NODE_VERSION", "20")
 
-# If you want the script to auto-install missing appium-uiautomator2 locally set:
-#   export FORCE_DRIVER_INSTALL=1
 FORCE_DRIVER_INSTALL = os.getenv("FORCE_DRIVER_INSTALL", "") == "1"
 
-# -------- Ensure Android envs present in Python env (so subprocesses inherit them) --------
-# Prefer env vars from .env / shell. If none provided, try common fallback locations.
 android_guess_paths = [
     os.getenv("ANDROID_HOME"),
     os.getenv("ANDROID_SDK_ROOT"),
@@ -56,20 +59,18 @@ android_guess_paths = [
 
 ANDROID_HOME = next((p for p in android_guess_paths if p and os.path.exists(p)), None)
 if not ANDROID_HOME:
-    # still set something so subprocesses see a value - user will get explicit error later if invalid
     ANDROID_HOME = os.getenv("ANDROID_HOME") or os.getenv("ANDROID_SDK_ROOT") or os.path.expanduser("~/Downloads")
 
 os.environ["ANDROID_HOME"] = ANDROID_HOME
 os.environ["ANDROID_SDK_ROOT"] = os.environ.get("ANDROID_SDK_ROOT", ANDROID_HOME)
 
-# Put Android platform-tools/tools on PATH so subprocesses (appium, adb) can find them
 android_paths = [
     os.path.join(ANDROID_HOME, "platform-tools"),
     os.path.join(ANDROID_HOME, "emulator"),
     os.path.join(ANDROID_HOME, "tools"),
     os.path.join(ANDROID_HOME, "tools", "bin"),
 ]
-# Prepend these to PATH if they exist
+
 current_path = os.environ.get("PATH", "")
 prepend_paths = ":".join([p for p in android_paths if p and os.path.exists(p)])
 if prepend_paths:
@@ -110,7 +111,6 @@ def run_shell(zsh_command, timeout=None, env=None):
     print("SHELL >", zsh_command)
     return subprocess.run(zsh_command, shell=True, check=True, capture_output=True, text=True, executable="/bin/zsh", timeout=timeout, env=env)
 
-# -------- APP/GENYMOTION helpers (unchanged logic, just using run_cmd) -------
 def start_instance_from_recipe():
     if not GM_API_TOKEN or not GM_RECIPE_UUID:
         raise RuntimeError("GM_API_TOKEN or GM_RECIPE_UUID missing in environment")
@@ -201,14 +201,7 @@ def adb_disconnect_via_gmsaas(instance_uuid, serial):
     except Exception:
         pass
 
-# -------- Appium helper functions (robust start/stop + driver management) --------
-import requests
-
 def _appium_status_ok(status_url="http://localhost:4723/wd/hub/status"):
-    """
-    Return True if Appium status endpoint is reachable.
-    Compatible with Appium 1.x and 2.x.
-    """
     try:
         resp = requests.get(status_url, timeout=1)
         # If server responds 200, we assume it’s ready
@@ -220,25 +213,22 @@ def _appium_status_ok(status_url="http://localhost:4723/wd/hub/status"):
 def find_nvm_appium_bin(preferred_node_prefix=APPIUM_NODE_VERSION):
     """
     Find Appium binary under ~/.nvm/versions/node/v{preferred_node_prefix}*
-    Returns tuple (APPIUM_BIN_path, node_bin_dir, env_dict)
-    Falls back to shutil.which("appium") if not found.
+    Returns tuple
     """
     node_dirs = glob.glob(os.path.expanduser(f"~/.nvm/versions/node/v{preferred_node_prefix}*"))
     node_bin_dir = None
     if node_dirs:
-        # prefer the first match (usually exact version e.g. v20.19.5)
         node_bin_dir = os.path.join(node_dirs[0], "bin")
         appium_bin = os.path.join(node_bin_dir, "appium")
         node_bin = os.path.join(node_bin_dir, "node")
         if os.path.exists(appium_bin) and os.access(appium_bin, os.X_OK):
             return appium_bin, node_bin_dir
-    # fallback to system appium
     which_appium = shutil.which("appium")
     which_node = shutil.which("node")
     return which_appium, os.path.dirname(which_node) if which_node else None
 
 def kill_port(port):
-    """Kill any processes listening on port (tries to kill process groups)."""
+    """Kill any processes listening on port"""
     try:
         out = subprocess.check_output(f"lsof -ti:{port}", shell=True).decode().strip()
         if not out:
@@ -256,33 +246,25 @@ def kill_port(port):
                 except Exception as e:
                     print("Failed to kill pid", pid, e)
     except subprocess.CalledProcessError:
-        # lsof returned non-zero -> nothing to kill, ignore
         pass
     except Exception as e:
         print("Could not kill port:", e)
 
 def start_appium_server(timeout=40):
-    """
-    Ensures driver availability (installs in CI/forced mode), then starts Appium.
-    Returns: (started_bool, subprocess.Popen object)
-    """
     import shutil
 
     appium_bin, node_bin_dir = find_nvm_appium_bin()
     if not appium_bin:
         raise RuntimeError("Could not find Appium binary. Install Appium globally or via nvm.")
 
-    # Build env for subprocesses
     env = os.environ.copy()
     if node_bin_dir:
         env["PATH"] = node_bin_dir + ":" + env.get("PATH", "")
 
-    # 1) Kill any old process on 4723
     kill_port(4723)
 
-    # 2) Check installed drivers
     try:
-        print("Checking installed Appium drivers (binary at):", appium_bin)
+        print("Checking installed Appium drivers:", appium_bin)
         res = subprocess.run(
             [appium_bin, "driver", "list", "--installed"],
             capture_output=True, text=True, env=env, check=True
@@ -292,7 +274,7 @@ def start_appium_server(timeout=40):
             msg = "uiautomator2 driver missing."
             if os.getenv("CI") or FORCE_DRIVER_INSTALL:
                 print(msg, "Installing/updating because CI or FORCE_DRIVER_INSTALL is set.")
-                # Use update to avoid 'already installed' error
+
                 subprocess.run([appium_bin, "driver", "update", "uiautomator2"], env=env, check=True)
             else:
                 print(msg, "Skipping automatic install on local machine. Set FORCE_DRIVER_INSTALL=1 to force.")
@@ -304,14 +286,12 @@ def start_appium_server(timeout=40):
             print("Attempting to update/install uiautomator2 in forced mode.")
             subprocess.run([appium_bin, "driver", "update", "uiautomator2"], env=env, check=True)
 
-    # 3) Start Appium subprocess
     appium_cmd = [appium_bin, "--log-level", "error", "--base-path", "/wd/hub"]
     print("Starting Appium:", " ".join(appium_cmd))
     proc = subprocess.Popen(
         appium_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, preexec_fn=os.setsid
     )
 
-    # 4) Poll for status
     start = time.time()
     while time.time() - start < timeout:
         if _appium_status_ok():
@@ -337,7 +317,6 @@ def start_appium_server(timeout=40):
         print("Appium is not ready yet...")
         time.sleep(1)
 
-    # Timeout -> capture logs
     stderr = ""
     try:
         _, stderr = proc.communicate(timeout=1)
@@ -362,7 +341,7 @@ def stop_appium_server(proc):
     except Exception as e:
         print("Error stopping Appium process:", e)
 
-# -------- APPIUM DRIVER & DRIVER CREATION --------
+# -------- APPIUM DRIVER --------
 def make_driver_with_serial(serial):
     options = UiAutomator2Options()
     options.platform_name = "Android"
@@ -388,7 +367,6 @@ def make_driver_with_serial(serial):
     except Exception as e:
         msg = str(e)
         if "Could not find a driver for automationName 'UIAutomator2'" in msg:
-            # try to install driver in CI / forced; otherwise instruct user
             appium_bin, node_bin = find_nvm_appium_bin()
             if os.getenv("CI") or FORCE_DRIVER_INSTALL:
                 print("UIAutomator2 driver missing — installing via appium binary...")
@@ -405,12 +383,11 @@ def make_driver_with_serial(serial):
                 )
         raise
 
-# -------- TIKTOK FLOW (same as earlier) -------
-# ---------- helpers ----------
+# -------- TIKTOK -------
 def load_nudge_targets():
     """
     Load usernames to nudge in priority order.
-    Sources tried (in order):
+    Sources tried:
       1) Environment variable NUDGE_USERS (comma separated)
       2) File ./nudge_users.txt (one username per line)
     Returns a list of cleaned usernames (max 200).
@@ -422,32 +399,25 @@ def load_nudge_targets():
     elif os.path.exists("nudge_users.txt"):
         with open("nudge_users.txt", "r", encoding="utf-8") as f:
             targets = [line.strip() for line in f if line.strip()]
-    # sanitize and limit
     cleaned = []
     for t in targets:
         if len(cleaned) >= 200:
             break
-        # remove stray punctuation, keep core username characters
         cleaned.append(t)
     return cleaned
 
-# ---------- Helpers & fast nudge (replace old versions) ----------
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 
-import time
-
-# tuning
 TOP_HEADER_Y_RATIO = 0.12
 CLICK_STABILIZE = 0.45
 DEFAULT_PER_ACTION_TIMEOUT = 1.5
 INBOX_OPEN_TIMEOUT = 1
-SCROLL_ATTEMPTS_PER_USER = 1   # small number of quick scrolls if not visible
+SCROLL_ATTEMPTS_PER_USER = 1
 SCROLL_PAUSE = 0.25
 
+
+
 def open_inbox_and_wait(driver, open_timeout=INBOX_OPEN_TIMEOUT):
-    """Open the Inbox and wait for a scrollable inbox container to appear/clickable."""
+    """Open the Inbox and wait for a scrollable inbox container to appear."""
     print("[run] Trying to open Inbox...")
 
     def _tap_center(el):
@@ -455,6 +425,9 @@ def open_inbox_and_wait(driver, open_timeout=INBOX_OPEN_TIMEOUT):
         cx = int(r["x"] + r["width"] / 2)
         cy = int(r["y"] + r["height"] / 2)
         driver.execute_script("mobile: tap", {"x": cx, "y": cy})
+
+    def _tap_xy(x, y):
+        driver.execute_script("mobile: tap", {"x": int(x), "y": int(y)})
 
     def _click_or_tap(el):
         try:
@@ -469,96 +442,117 @@ def open_inbox_and_wait(driver, open_timeout=INBOX_OPEN_TIMEOUT):
                 print("[run] tap failed:", e2)
                 return False
 
-    attempts = [
-        (By.ID, "com.zhiliaoapp.musically:id/n18"),
-        (By.ID, "com.zhiliaoapp.musically:id/mso"),
-        (By.XPATH, "//android.widget.TextView[@text='Inbox']"),
-        (By.ID, "com.zhiliaoapp.musically:id/myf")
-    ]
-
-    # 1) direct locators
-    for by, sel in attempts:
+    def _dismiss_possible_overlay():
+        """
+        Tap slightly above the center of the screen to dismiss promo/pop-up overlays.
+        """
         try:
-            print(f"[run] trying selector {by} / {sel}")
+            size = driver.get_window_size()
+            x = int(size["width"] * 0.5)
+            y = int(size["height"] * 0.38)
 
-            if by == "accessibility id":
-                el = WebDriverWait(driver, 2).until(
-                    lambda d: d.find_element("accessibility id", sel)
-                )
-            else:
+            print(f"[run] Trying overlay dismiss tap at ({x}, {y})")
+            _tap_xy(x, y)
+            time.sleep(0.7)
+            return True
+        except Exception as e:
+            print("[run] overlay dismiss tap failed:", e)
+            return False
+
+    def _try_open_inbox_once():
+        attempts = [
+            (By.ID, "com.zhiliaoapp.musically:id/n18"),
+            (By.ID, "com.zhiliaoapp.musically:id/mso"),
+            (By.XPATH, "//android.widget.TextView[@text='Inbox']"),
+            (By.ID, "com.zhiliaoapp.musically:id/myf"),
+        ]
+
+        for by, sel in attempts:
+            try:
+                print(f"[run] trying selector {by} / {sel}")
+
                 el = WebDriverWait(driver, 2).until(
                     EC.presence_of_element_located((by, sel))
                 )
 
-            if el and el.is_displayed():
-                print("[run] Clicking inbox element.")
-                if not _click_or_tap(el):
-                    continue
+                if el and el.is_displayed():
+                    print("[run] Clicking inbox element.")
+                    if not _click_or_tap(el):
+                        continue
 
-                time.sleep(0.8)
-                c = wait_for_inbox_container(driver, timeout=open_timeout)
-                if c:
-                    print("[run] Inbox container available.")
-                    return c
-                else:
-                    print("[run] Inbox click succeeded but container not found yet.")
+                    time.sleep(0.8)
+                    c = wait_for_inbox_container(driver, timeout=open_timeout)
+                    if c:
+                        print("[run] Inbox container available.")
+                        return c
+                    else:
+                        print("[run] Inbox click succeeded but container not found yet.")
+
+            except Exception as e:
+                print("[run] inbox selector failed:", e)
+                continue
+
+        try:
+            print("[run] Trying bottom-nav index fallback...")
+            nav_children = driver.find_elements(
+                By.XPATH,
+                "//*[@resource-id='com.zhiliaoapp.musically:id/mym']/*"
+            )
+
+            print(f"[run] bottom-nav child count: {len(nav_children)}")
+
+            if len(nav_children) >= 4:
+                inbox_el = nav_children[3]  # 4th item
+                if _click_or_tap(inbox_el):
+                    time.sleep(0.8)
+                    c = wait_for_inbox_container(driver, timeout=open_timeout)
+                    if c:
+                        print("[run] Inbox container available (bottom-nav fallback).")
+                        return c
+                    else:
+                        print("[run] bottom-nav click worked but container not found.")
+            else:
+                print("[run] bottom-nav fallback: not enough children found.")
         except Exception as e:
-            print("[run] inbox selector failed:", e)
-            continue
+            print("[run] bottom-nav fallback failed:", e)
 
-    # 2) fallback: bottom nav container -> 4th item (Inbox), since you always start from Home
-    try:
-        print("[run] Trying bottom-nav index fallback...")
-        nav_children = driver.find_elements(
-            By.XPATH,
-            "//*[@resource-id='com.zhiliaoapp.musically:id/mym']/*"
-        )
+        try:
+            print("[run] Trying coordinate fallback for Inbox...")
+            size = driver.get_window_size()
 
-        print(f"[run] bottom-nav child count: {len(nav_children)}")
+            x = int(size["width"] * 0.7)
+            y = int(size["height"] * 0.94)
 
-        if len(nav_children) >= 4:
-            inbox_el = nav_children[3]  # 0-based: 4th item = Inbox
-            if _click_or_tap(inbox_el):
-                time.sleep(0.8)
-                c = wait_for_inbox_container(driver, timeout=open_timeout)
-                if c:
-                    print("[run] Inbox container available (bottom-nav fallback).")
-                    return c
-                else:
-                    print("[run] bottom-nav click worked but container not found.")
-        else:
-            print("[run] bottom-nav fallback: not enough children found.")
-    except Exception as e:
-        print("[run] bottom-nav fallback failed:", e)
+            _tap_xy(x, y)
+            time.sleep(0.8)
 
-    # 3) last-resort coordinate fallback: 4th slot of bottom nav
-    try:
-        print("[run] Trying coordinate fallback for Inbox...")
-        size = driver.get_window_size()
+            c = wait_for_inbox_container(driver, timeout=open_timeout)
+            if c:
+                print("[run] Inbox container available (coordinate fallback).")
+                return c
+        except Exception as e:
+            print("[run] coordinate inbox tap failed:", e)
 
-        # bottom nav is 5 items wide; Inbox is the 4th item => center around 70%
-        x = int(size["width"] * 0.7)
-        y = int(size["height"] * 0.94)
+        return None
 
-        driver.execute_script("mobile: tap", {"x": x, "y": y})
-        time.sleep(0.8)
+    c = _try_open_inbox_once()
+    if c:
+        return c
 
-        c = wait_for_inbox_container(driver, timeout=open_timeout)
-        if c:
-            print("[run] Inbox container available (coordinate fallback).")
-            return c
-    except Exception as e:
-        print("[run] coordinate inbox tap failed:", e)
+    print("[run] Inbox not opened. Trying to dismiss possible overlay...")
+    _dismiss_possible_overlay()
+
+    c = _try_open_inbox_once()
+    if c:
+        print("[run] Inbox opened after dismissing overlay.")
+        return c
 
     print("[run] Could not open inbox.")
     return None
 
-
 def wait_for_inbox_container(driver, timeout=INBOX_OPEN_TIMEOUT):
     """
-    Look for a visible scrollable inbox container:
-      - RecyclerView or ListView or any element with @scrollable='true' or a resource-id containing 'list'/'inbox'/'message'
-    Returns the element (WebElement) or None.
+    Look for a visible scrollable inbox container
     """
     check_xpath = ("//*[(@scrollable='true') or "
                    "contains(@class,'RecyclerView') or "
@@ -586,8 +580,8 @@ def wait_for_inbox_container(driver, timeout=INBOX_OPEN_TIMEOUT):
 
 def _find_username_in_container(container, username):
     """
-    Search only inside the container for exact-text TextView(s).
-    Retries 2 times with 5s delay if not found, then raises an exception.
+    Search only inside the container for exact text.
+    Retries 2 times with 5s delay if not found then raises an exception.
     """
     attempts = 0
     max_attempts = 3  # initial try + 2 retries
@@ -617,7 +611,6 @@ def _find_username_in_container(container, username):
 def _find_username(driver, container, username):
     """
     Searches for a username in the UI with detailed logging.
-    Strategy:
     1) container search (contains first, then exact)
     2) global search (contains first, then exact)
     3) accessibility search
@@ -632,7 +625,6 @@ def _find_username(driver, container, username):
         print(f"\n[find] Attempt {attempt_index + 1}/{max_attempts}")
 
         try:
-            # ---------- 1) Container based search ----------
             if container:
                 print("[find] Using: container search")
 
@@ -641,7 +633,7 @@ def _find_username(driver, container, username):
                 elements = container.find_elements(By.XPATH, container_contains_xpath)
                 print(f"[find] Result -> {len(elements)} elements found")
                 if elements:
-                    print("[find] ✅ FOUND via container contains")
+                    print("[find] FOUND via container contains")
                     return elements[0]
 
                 container_exact_xpath = f".//*[@text='{username}']"
@@ -649,10 +641,9 @@ def _find_username(driver, container, username):
                 elements = container.find_elements(By.XPATH, container_exact_xpath)
                 print(f"[find] Result -> {len(elements)} elements found")
                 if elements:
-                    print("[find] ✅ FOUND via container exact")
+                    print("[find] FOUND via container exact")
                     return elements[0]
 
-            # ---------- 2) Global search ----------
             print("[find] Using: global search")
 
             global_contains_xpath = f"//*[contains(@text,'{username}')]"
@@ -660,7 +651,7 @@ def _find_username(driver, container, username):
             elements = driver.find_elements(By.XPATH, global_contains_xpath)
             print(f"[find] Result -> {len(elements)} elements found")
             if elements:
-                print("[find] ✅ FOUND via global contains")
+                print("[find] FOUND via global contains")
                 return elements[0]
 
             global_exact_xpath = f"//*[@text='{username}']"
@@ -668,10 +659,9 @@ def _find_username(driver, container, username):
             elements = driver.find_elements(By.XPATH, global_exact_xpath)
             print(f"[find] Result -> {len(elements)} elements found")
             if elements:
-                print("[find] ✅ FOUND via global exact")
+                print("[find] FOUND via global exact")
                 return elements[0]
 
-            # ---------- 3) Accessibility search ----------
             print("[find] Using: content-desc search")
 
             accessibility_contains_xpath = f"//*[contains(@content-desc,'{username}')]"
@@ -679,39 +669,22 @@ def _find_username(driver, container, username):
             elements = driver.find_elements(By.XPATH, accessibility_contains_xpath)
             print(f"[find] Result -> {len(elements)} elements found")
             if elements:
-                print("[find] ✅ FOUND via content-desc contains")
+                print("[find] FOUND via content-desc contains")
                 return elements[0]
 
         except Exception as err:
-            print(f"[find] ❌ ERROR during attempt {attempt_index + 1}: {repr(err)}")
+            print(f"[find] ERROR during attempt {attempt_index + 1}: {repr(err)}")
 
         if attempt_index < max_attempts - 1:
-            print(f"[find] ⏳ Not found — retrying in {retry_delay}s...")
+            print(f"[find] Not found — retrying in {retry_delay}s...")
             time.sleep(retry_delay)
 
-    print(f"[find] ❌ FINAL -> Username '{username}' not found in UI")
-
-
-def _find_username_ui_scrollable(driver, username):
-    """
-    Uses Android UiScrollable to force-scroll until the username is visible.
-    Returns element or raises Exception.
-    """
-    try:
-        el = driver.find_element(
-            By.AndroidUIAutomator,
-            f'new UiScrollable(new UiSelector().scrollable(true))'
-            f'.scrollIntoView(new UiSelector().text("{username}"))'
-        )
-        return el
-    except Exception:
-        raise Exception(f"Username '{username}' not found via UiScrollable")
+    print(f"[find] FINAL - Username '{username}' not found in UI")
 
 
 def scroll_container_small(driver, container, direction="up"):
     """
-    Perform a short swipe inside the container rect (direction 'up' or 'down').
-    Always uses driver.execute_script('mobile: swipe', ...).
+    Perform a short swipe inside the container rect
     """
     try:
         r = container.rect
@@ -728,7 +701,7 @@ def scroll_container_small(driver, container, direction="up"):
             "endX": start_x, "endY": end_y,
             "duration": 200
         })
-        time.sleep(0.3)  # small pause after swipe
+        time.sleep(0.3) 
         return True
     except Exception as e:
         print("[run] scroll_container_small failed:", e)
@@ -773,9 +746,7 @@ def ensure_app_foreground(driver, package, retries=3, timeout_each=5):
 
 def run_nudge_flow_fast(driver, targets=None, max_to_process=50):
     """
-    Fast nudge flow without scrolling:
-      - Assumes all usernames are visible on screen
-      - Clicks chat, nudges, returns to inbox
+      Clicks chat, nudges, returns to inbox
     """
     if targets is None:
         targets = load_nudge_targets()
@@ -805,7 +776,6 @@ def run_nudge_flow_fast(driver, targets=None, max_to_process=50):
     processed = 0
     wait = WebDriverWait(driver, DEFAULT_PER_ACTION_TIMEOUT)
 
-    # get scrollable container once (optional)
     container = open_inbox_and_wait(driver, open_timeout=INBOX_OPEN_TIMEOUT)
     if not container:
         print("[run] Inbox container not found; aborting.")
@@ -830,7 +800,6 @@ def run_nudge_flow_fast(driver, targets=None, max_to_process=50):
             print(f"[run] Could not locate chat for {username} with global search.")
             continue
 
-        # climb up to 3 ancestors to find clickable row
         click_target = found_el
         try:
             ancestor = found_el
@@ -907,7 +876,7 @@ def run_nudge_flow_fast(driver, targets=None, max_to_process=50):
     print(f"[run] Completed: processed {processed} nudges (targets provided: {len(targets)})")
     return processed
 
-# -------- ANDROID SDK CHECK (explicit) -------
+# -------- ANDROID SDK -------
 def check_android_sdk():
     android_home = os.getenv("ANDROID_HOME") or os.getenv("ANDROID_SDK_ROOT")
     if not android_home:
@@ -931,26 +900,26 @@ def main():
     appium_started = False
     appium_proc = None
     try:
-        # 0) Setup Appium (do this BEFORE creating Genymotion instance)
+        # setup appium
         appium_started, appium_proc = start_appium_server()
 
-        # 1) Start Genymotion instance and wait until ONLINE
+        # Start genymotion instance and wait until ONLINE
         instance_uuid = start_instance_from_recipe()
 
         ensure_gmsaas_authenticated()
 
         instance_data = wait_instance_online(instance_uuid)
 
-        # 2) Create adb tunnel via gmsaas
+        # create adb tunnel via gmsaas
         serial = adb_connect_via_gmsaas(instance_uuid)
-        time.sleep(1)  # give the tunnel time
+        time.sleep(1) 
         os.environ["ANDROID_ADB_SERVER_PORT"] = serial.split(":")[-1]
        
         if not serial:
             raise RuntimeError("No adb serial found after gmsaas adbconnect")
 
         print("Creating appium driver...")
-        # 3) Create Appium driver and run flow
+        # create appium driver and run flow
         driver = make_driver_with_serial(serial)
         print("Driver created. Running nudge flow.")
 
@@ -958,7 +927,7 @@ def main():
         proccesed = run_nudge_flow_fast(driver, targets=targets, max_to_process=50)
 
 
-        # 4) Cleanup
+        # cleanup
         try: driver.quit()
         except: pass
         adb_disconnect_via_gmsaas(instance_uuid, serial)
@@ -991,7 +960,6 @@ def main():
         send_email("TikTok Nudge Automation Failed", tb)
         raise
     finally:
-        # Stop Appium server if we started it here
         if appium_started and appium_proc:
             stop_appium_server(appium_proc)
             stop_instance(instance_uuid=instance_uuid)
