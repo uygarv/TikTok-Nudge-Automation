@@ -99,7 +99,6 @@ def send_email(subject, body):
         print("Failed to send email:", e)
 
 def run_cmd(cmd, check=True, capture_output=True, text=True, timeout=None, env=None):
-    """Run a list-form command (no shell) and return CompletedProcess."""
     if isinstance(cmd, (list, tuple)):
         print("CMD >", " ".join(cmd))
     else:
@@ -107,7 +106,6 @@ def run_cmd(cmd, check=True, capture_output=True, text=True, timeout=None, env=N
     return subprocess.run(cmd, check=check, capture_output=capture_output, text=text, timeout=timeout, env=env)
 
 def run_shell(zsh_command, timeout=None, env=None):
-    """Run a shell zsh command that loads nvm etc. Returns CompletedProcess. Uses /bin/zsh -lc."""
     print("SHELL >", zsh_command)
     return subprocess.run(zsh_command, shell=True, check=True, capture_output=True, text=True, executable="/bin/zsh", timeout=timeout, env=env)
 
@@ -211,10 +209,6 @@ def _appium_status_ok(status_url="http://localhost:4723/wd/hub/status"):
 
 
 def find_nvm_appium_bin(preferred_node_prefix=APPIUM_NODE_VERSION):
-    """
-    Find Appium binary under ~/.nvm/versions/node/v{preferred_node_prefix}*
-    Returns tuple
-    """
     node_dirs = glob.glob(os.path.expanduser(f"~/.nvm/versions/node/v{preferred_node_prefix}*"))
     node_bin_dir = None
     if node_dirs:
@@ -228,7 +222,6 @@ def find_nvm_appium_bin(preferred_node_prefix=APPIUM_NODE_VERSION):
     return which_appium, os.path.dirname(which_node) if which_node else None
 
 def kill_port(port):
-    """Kill any processes listening on port"""
     try:
         out = subprocess.check_output(f"lsof -ti:{port}", shell=True).decode().strip()
         if not out:
@@ -341,7 +334,7 @@ def stop_appium_server(proc):
     except Exception as e:
         print("Error stopping Appium process:", e)
 
-# -------- APPIUM DRIVER --------
+# -------- APPIUM --------
 def make_driver_with_serial(serial):
     options = UiAutomator2Options()
     options.platform_name = "Android"
@@ -387,10 +380,8 @@ def make_driver_with_serial(serial):
 def load_nudge_targets():
     """
     Load usernames to nudge in priority order.
-    Sources tried:
-      1) Environment variable NUDGE_USERS (comma separated)
-      2) File ./nudge_users.txt (one username per line)
-    Returns a list of cleaned usernames (max 200).
+    1. Environment variable 
+    2. File ./nudge_users.txt
     """
     env = os.getenv("NUDGE_USERS")
     targets = []
@@ -417,7 +408,6 @@ SCROLL_PAUSE = 0.25
 
 
 def open_inbox_and_wait(driver, open_timeout=INBOX_OPEN_TIMEOUT):
-    """Open the Inbox and wait for a scrollable inbox container to appear."""
     print("[run] Trying to open Inbox...")
 
     def _tap_center(el):
@@ -443,13 +433,10 @@ def open_inbox_and_wait(driver, open_timeout=INBOX_OPEN_TIMEOUT):
                 return False
 
     def _dismiss_possible_overlay():
-        """
-        Tap slightly above the center of the screen to dismiss promo/pop-up overlays.
-        """
         try:
             size = driver.get_window_size()
             x = int(size["width"] * 0.5)
-            y = int(size["height"] * 0.38)
+            y = int(size["height"] * 0.38) 
 
             print(f"[run] Trying overlay dismiss tap at ({x}, {y})")
             _tap_xy(x, y)
@@ -551,9 +538,6 @@ def open_inbox_and_wait(driver, open_timeout=INBOX_OPEN_TIMEOUT):
     return None
 
 def wait_for_inbox_container(driver, timeout=INBOX_OPEN_TIMEOUT):
-    """
-    Look for a visible scrollable inbox container
-    """
     check_xpath = ("//*[(@scrollable='true') or "
                    "contains(@class,'RecyclerView') or "
                    "contains(@class,'ListView') or "
@@ -578,44 +562,8 @@ def wait_for_inbox_container(driver, timeout=INBOX_OPEN_TIMEOUT):
         time.sleep(0.4)
     return None
 
-def _find_username_in_container(container, username):
-    """
-    Search only inside the container for exact text.
-    Retries 2 times with 5s delay if not found then raises an exception.
-    """
-    attempts = 0
-    max_attempts = 3  # initial try + 2 retries
-
-    while attempts < max_attempts:
-        try:
-            # exact-text match inside container
-            els = container.find_elements(By.XPATH, f".//android.widget.TextView[@text='{username}']")
-            if els:
-                return els[0]
-
-            # fallback for custom layouts
-            els2 = container.find_elements(By.XPATH, f".//*[normalize-space(@text)='{username}']")
-            if els2:
-                return els2[0]
-
-        except Exception:
-            pass
-
-        attempts += 1
-
-        if attempts < max_attempts:
-            print(f"[run] Username '{username}' not found in container, retrying after 5 seconds...")
-            time.sleep(5)
-
 
 def _find_username(driver, container, username):
-    """
-    Searches for a username in the UI with detailed logging.
-    1) container search (contains first, then exact)
-    2) global search (contains first, then exact)
-    3) accessibility search
-    """
-
     max_attempts = 3
     retry_delay = 5
 
@@ -683,9 +631,7 @@ def _find_username(driver, container, username):
 
 
 def scroll_container_small(driver, container, direction="up"):
-    """
-    Perform a short swipe inside the container rect
-    """
+   
     try:
         r = container.rect
         start_x = int(r['x'] + r['width'] * 0.5)
@@ -745,9 +691,6 @@ def ensure_app_foreground(driver, package, retries=3, timeout_each=5):
 
 
 def run_nudge_flow_fast(driver, targets=None, max_to_process=50):
-    """
-      Clicks chat, nudges, returns to inbox
-    """
     if targets is None:
         targets = load_nudge_targets()
     if not targets:
@@ -774,7 +717,6 @@ def run_nudge_flow_fast(driver, targets=None, max_to_process=50):
     time.sleep(3)
 
     processed = 0
-    wait = WebDriverWait(driver, DEFAULT_PER_ACTION_TIMEOUT)
 
     container = open_inbox_and_wait(driver, open_timeout=INBOX_OPEN_TIMEOUT)
     if not container:
@@ -891,7 +833,7 @@ def check_android_sdk():
         raise RuntimeError(f"ANDROID_HOME / ANDROID_SDK_ROOT path does not exist: {android_home}")
     print(f"Android SDK found at: {android_home}")
 
-# -------- MAIN -------
+# ------ MAIN -------
 def main():
     check_android_sdk()
     instance_uuid = None
