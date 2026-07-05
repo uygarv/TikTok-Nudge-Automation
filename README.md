@@ -160,6 +160,21 @@ Click **Save** in the left-side toolbar and save the Recipe.
 
 ---
 
+## 7. Create an API Key
+
+Go to the **API** page from the left sidebar.
+
+Click **Create**, enter a description for the key, and generate it.
+
+Copy the generated API key and add it to your `.env` file:
+
+```env
+GM_API_TOKEN=<your_api_token>
+```
+
+---
+
+
 # Notice
 
 If the automation suddenly starts failing, TikTok has most likely introduced a new popup or is waiting for user interaction.
