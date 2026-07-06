@@ -284,7 +284,7 @@ It uses:
 
 A **Google App Password** is required.
 
-Enter the **App Password** in `EMAIL_PASS`—**not** your normal Google account password.
+Enter the **App Password** in `EMAIL_PASS` **not** your normal Google account password.
 
 Generate an App Password from:
 
