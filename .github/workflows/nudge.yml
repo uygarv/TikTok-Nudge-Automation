@@ -37,9 +37,6 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Update npm globally
-        run: npm install -g npm@latest
-
       - name: Kill existing adb server
         run: |
           adb kill-server || true
