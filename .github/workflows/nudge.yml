@@ -37,6 +37,11 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Install Appium dependencies
+        run: |
+          npm ci
+          echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
+
       - name: Kill existing adb server
         run: |
           adb kill-server || true
@@ -44,7 +49,6 @@ jobs:
 
       - name: Install Appium
         run: |
-          npm install -g appium@latest
           appium driver install uiautomator2 || true
 
       - name: Install gmsaas CLI
